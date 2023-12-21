@@ -1,4 +1,5 @@
 from amaranth import *
+
 from ..core import *
 from ..core import TransactionBase
 from contextlib import contextmanager
@@ -67,7 +68,7 @@ def condition(m: TModule, *, nonblocking: bool = False, priority: bool = True):
             raise RuntimeError("Condition clause added after catch-all")
         req = cond if cond is not None else 1
         name = f"{this.name}_cond{len(transactions)}"
-        with (transaction := Transaction(name=name)).body(m, request=req):
+        with (transaction := Transaction(name=name, owner_depth=2)).body(m, request=req):
             yield
         if transactions and priority:
             transactions[-1].schedule_before(transaction)

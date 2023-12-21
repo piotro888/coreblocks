@@ -86,8 +86,8 @@ def method_def_helper(method, func: Callable[..., T], arg: Record) -> T:
     return def_helper(f"method definition for {method}", func, Record, arg, **arg.fields)
 
 
-def get_caller_class_name(default: Optional[str] = None) -> tuple[Optional[Elaboratable], str]:
-    caller_frame = sys._getframe(2)
+def get_caller_class_name(default: Optional[str] = None, extra_depth: int = 0) -> tuple[Optional[Elaboratable], str]:
+    caller_frame = sys._getframe(2 + extra_depth)
     if "self" in caller_frame.f_locals:
         owner = caller_frame.f_locals["self"]
         return owner, owner.__class__.__name__

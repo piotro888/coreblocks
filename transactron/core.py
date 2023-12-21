@@ -899,7 +899,9 @@ class Transaction(TransactionBase):
         and all used methods are called.
     """
 
-    def __init__(self, *, name: Optional[str] = None, manager: Optional[TransactionManager] = None):
+    def __init__(
+        self, *, name: Optional[str] = None, manager: Optional[TransactionManager] = None, owner_depth: int = 0
+    ):
         """
         Parameters
         ----------
@@ -911,9 +913,11 @@ class Transaction(TransactionBase):
         manager: TransactionManager
             The `TransactionManager` controlling this `Transaction`.
             If omitted, the manager is received from `TransactionContext`.
+        owner_depth: int
+            Additional stack depth of class that owns this `Transaction`.
         """
         super().__init__()
-        self.owner, owner_name = get_caller_class_name(default="$transaction")
+        self.owner, owner_name = get_caller_class_name(default="$transaction", extra_depth=owner_depth)
         self.name = name or tracer.get_var_name(depth=2, default=owner_name)
         if manager is None:
             manager = TransactionContext.get()
