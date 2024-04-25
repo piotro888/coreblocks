@@ -1,3 +1,4 @@
+from dataclasses import fields
 from typing import Optional
 from amaranth.lib.data import StructLayout
 from coreblocks.params import GenParams
@@ -610,3 +611,14 @@ class ExceptionRegisterLayouts:
 class CoreInstructionCounterLayouts:
     def __init__(self, gen_params: GenParams):
         self.decrement = [("empty", 1)]
+
+class CheckpointQueueLayouts:
+    def __init__(self, gen_params: GenParams):
+        fields  = gen_params.get(CommonLayoutFields)
+        
+        self.checkpoint_id = ("checkpoint_id", range(gen_params.checkpoint_count))
+
+        self.rename = make_layout(fields.rl_dst) 
+        self.peek = make_layout(fields.rp_dst)
+        self.restore = make_layout(self.checkpoint_id) 
+        self.checkpoint = make_layout(self.checkpoint_id)

@@ -70,6 +70,8 @@ class _CoreConfigurationDataClass:
         Log of the cache line size (in bytes).
     fetch_block_bytes_log: int
         Log of the size of the fetch block (in bytes).
+    checkpoint_count: int
+        Number of maximum supported branch checkpoints
     allow_partial_extensions: bool
         Allow partial support of extensions.
     _implied_extensions: Extenstion
@@ -102,6 +104,8 @@ class _CoreConfigurationDataClass:
     icache_line_bytes_log: int = 5
 
     fetch_block_bytes_log: int = 2
+
+    checkpoint_count: int = 8
 
     allow_partial_extensions: bool = False
 
