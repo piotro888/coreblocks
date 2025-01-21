@@ -6,6 +6,8 @@ import argparse
 
 from amaranth import *
 
+from coreblocks.soc.soc import SoC
+
 
 if __name__ == "__main__":
     parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -26,10 +28,14 @@ str_to_coreconfig: dict[str, CoreConfiguration] = {
 }
 
 
-def gen_verilog(core_config: CoreConfiguration, output_path: str):
+def gen_verilog(core_config: CoreConfiguration, output_path: str, *, wrap_soc: bool = False):
     with DependencyContext(DependencyManager()):
         gp = GenParams(core_config)
-        top = TransactionComponent(Core(gen_params=gp), dependency_manager=DependencyContext.get())
+        core = Core(gen_params=gp)
+        if wrap_soc:
+            core = SoC(core=core, core_gen_params=gp)
+
+        top = TransactionComponent(core, dependency_manager=DependencyContext.get())
 
         verilog_text, gen_info = generate_verilog(top)
 
@@ -61,6 +67,12 @@ def main():
         action="store_true",
         help="Remove debugging signals. Default: %(default)s",
     )
+    
+    parser.add_argument(
+        "--soc",
+        action="store_true",
+        help="Wrap core in internal SoC adding internal memory mapped peripherals"
+    )
 
     parser.add_argument(
         "-o", "--output", action="store", default="core.v", help="Output file path. Default: %(default)s"
@@ -77,7 +89,7 @@ def main():
     if args.strip_debug:
         config = config.replace(debug_signals=False)
 
-    gen_verilog(config, args.output)
+    gen_verilog(config, args.output, wrap_soc=args.soc)
 
 
 if __name__ == "__main__":

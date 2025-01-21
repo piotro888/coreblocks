@@ -1,6 +1,10 @@
 from amaranth import *
 
 from typing import Optional
+
+from transactron.core import Method, Transaction, def_method, TModule
+from transactron.core.tmodule import DependencyContext
+
 from coreblocks.arch import CSRAddress
 from coreblocks.arch.csr_address import MstatusFieldOffsets
 from coreblocks.arch.isa import Extension
@@ -8,7 +12,7 @@ from coreblocks.arch.isa_consts import PrivilegeLevel, XlenEncoding, TrapVectorM
 from coreblocks.params.genparams import GenParams
 from coreblocks.priv.csr.csr_register import CSRRegister
 from coreblocks.priv.csr.aliased import AliasedCSR
-from transactron.core import Method, Transaction, def_method, TModule
+from coreblocks.soc.clint import ClintMtimeKey
 
 
 class DoubleCounterCSR(Elaboratable):
@@ -231,9 +235,17 @@ class GenericCSRRegisters(Elaboratable):
 
         self.m_mode = MachineModeCSRRegisters(gen_params)
 
-        self.csr_cycle = DoubleCounterCSR(gen_params, CSRAddress.CYCLE, CSRAddress.CYCLEH)
-        # TODO: CYCLE should be alias to TIME
-        self.csr_time = DoubleCounterCSR(gen_params, CSRAddress.TIME, CSRAddress.TIMEH)
+        self.csr_mcycle = DoubleCounterCSR(gen_params, CSRAddress.MCYCLE, CSRAddress.MCYCLEH)
+        self.csr_cycle = DoubleCounterCSR(
+            gen_params, CSRAddress.CYCLE, CSRAddress.CYCLEH
+        )  # FIXME: this should be a shadow of mcycle!
+
+        self.mtime = DependencyContext.get().get_optional_dependency(ClintMtimeKey())
+        if self.mtime is None:
+            self.csr_time = DoubleCounterCSR(gen_params, CSRAddress.TIME, CSRAddress.TIMEH)
+        else:
+            self.csr_time = CSRRegister(CSRAddress.TIME, gen_params, ro_bits=-1)
+            self.csr_timeh = CSRRegister(CSRAddress.TIMEH, gen_params, ro_bits=-1)
 
         if gen_params._generate_test_hardware:
             self.csr_coreblocks_test = CSRRegister(CSRAddress.COREBLOCKS_TEST_CSR, gen_params)
@@ -250,6 +262,16 @@ class GenericCSRRegisters(Elaboratable):
 
         with Transaction().body(m):
             self.csr_cycle.increment(m)
-            self.csr_time.increment(m)
+
+            if self.mtime is None:
+                assert isinstance(self.csr_time, DoubleCounterCSR)
+                self.csr_time.increment(m)
+            else:
+                assert isinstance(self.csr_time, CSRRegister)
+                assert isinstance(self.csr_timeh, CSRRegister)
+                self.csr_time.write(m, data=self.mtime[0 : self.csr_time.width])
+                self.csr_timeh.write(
+                    m, data=self.mtime[self.csr_time.width : self.csr_time.width + self.csr_timeh.width]
+                )
 
         return m
