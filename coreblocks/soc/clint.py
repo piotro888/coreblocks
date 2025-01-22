@@ -1,9 +1,8 @@
 from amaranth import *
-from amaranth.lib.wiring import Component, Out
+from amaranth.lib.wiring import Component, In, Out
 
 from dataclasses import dataclass
 
-from transactron.core import TModule
 from transactron.core.tmodule import SimpleKey
 from transactron.lib.dependencies import DependencyContext
 
@@ -18,8 +17,8 @@ class ClintMtimeKey(SimpleKey[Value]):
 
 class ClintPeriph(Component):
     bus: WishboneInterface
-    mtip: Signal 
-    msip: Signal 
+    mtip: Signal
+    msip: Signal
 
     def __init__(
         self,
@@ -32,7 +31,13 @@ class ClintPeriph(Component):
         mtime_offset=0xBFF8,
         space_size: int = 0xC000
     ):
-        super().__init__({"bus": WishboneSignature(wb_params), "mtip": Out(1), "msip": Out(hart_count),})
+        super().__init__(
+            {
+                "bus": In(WishboneSignature(wb_params)),
+                "mtip": Out(1),
+                "msip": Out(hart_count),
+            }
+        )
         self.time_width = 64
         self.ipi_width = 64
         self.base_addr = base_addr
@@ -51,7 +56,7 @@ class ClintPeriph(Component):
         dm.add_dependency(ClintMtimeKey(), self.mtime)
 
     def elaborate(self, platform):
-        m = TModule()
+        m = Module()
 
         m.d.sync += self.mtime.eq(self.mtime + 1)
 

@@ -240,13 +240,6 @@ class GenericCSRRegisters(Elaboratable):
             gen_params, CSRAddress.CYCLE, CSRAddress.CYCLEH
         )  # FIXME: this should be a shadow of mcycle!
 
-        self.mtime = DependencyContext.get().get_optional_dependency(ClintMtimeKey())
-        if self.mtime is None:
-            self.csr_time = DoubleCounterCSR(gen_params, CSRAddress.TIME, CSRAddress.TIMEH)
-        else:
-            self.csr_time = CSRRegister(CSRAddress.TIME, gen_params, ro_bits=-1)
-            self.csr_timeh = CSRRegister(CSRAddress.TIMEH, gen_params, ro_bits=-1)
-
         if gen_params._generate_test_hardware:
             self.csr_coreblocks_test = CSRRegister(CSRAddress.COREBLOCKS_TEST_CSR, gen_params)
 
@@ -255,23 +248,25 @@ class GenericCSRRegisters(Elaboratable):
 
         m.submodules.m_mode = self.m_mode
 
+        mtime = DependencyContext.get().get_optional_dependency(ClintMtimeKey())
+        if mtime is None:
+            m.submodules.csr_time = csr_time = DoubleCounterCSR(self.gen_params, CSRAddress.TIME, CSRAddress.TIMEH)
+            with Transaction().body(m):
+                csr_time.increment(m)
+
+        else:
+            m.submodules.csr_time = csr_time = CSRRegister(CSRAddress.TIME, self.gen_params)
+            m.submodules.csr_timeh = csr_timeh = CSRRegister(CSRAddress.TIMEH, self.gen_params)
+            with Transaction().body(m):
+                csr_time.write(m, data=mtime[: csr_time.width])
+                csr_timeh.write(m, data=mtime[csr_time.width :])
+
         m.submodules.csr_cycle = self.csr_cycle
-        m.submodules.csr_time = self.csr_time
+        m.submodules.csr_mcycle = self.csr_mcycle
         if self.gen_params._generate_test_hardware:
             m.submodules.csr_coreblocks_test = self.csr_coreblocks_test
 
         with Transaction().body(m):
             self.csr_cycle.increment(m)
-
-            if self.mtime is None:
-                assert isinstance(self.csr_time, DoubleCounterCSR)
-                self.csr_time.increment(m)
-            else:
-                assert isinstance(self.csr_time, CSRRegister)
-                assert isinstance(self.csr_timeh, CSRRegister)
-                self.csr_time.write(m, data=self.mtime[0 : self.csr_time.width])
-                self.csr_timeh.write(
-                    m, data=self.mtime[self.csr_time.width : self.csr_time.width + self.csr_timeh.width]
-                )
 
         return m

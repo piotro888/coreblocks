@@ -24,33 +24,37 @@ class SoC(Component):
         )
 
         self.clint = ClintPeriph(base_addr=0xE1000000, wb_params=core_gen_params.wb_params)
-        
-        self.core = core 
+
+        self.core = core
         self.core_gen_params = core_gen_params
 
     def elaborate(self, platform):
         m = Module()
-        
+
         muxer_ssel = Signal(2)
         periph_muxer = WishboneMuxer(self.core_gen_params.wb_params, 2, muxer_ssel)
 
-        connect(m, flipped(self.core.wb_instr), self.wb_instr)
-        
-        connect(m, flipped(self.core.wb_instr), periph_muxer.master_wb)
-        connect(m, flipped(periph_muxer.slaves[0]), self.wb_data)
-        
-        connect(m, flipped(periph_muxer.slaves[1]), self.clint.bus)
+        connect(m, self.core.wb_instr, flipped(self.wb_instr))
+
+        connect(m, self.core.wb_data, periph_muxer.master_wb)
+        connect(m, periph_muxer.slaves[0], flipped(self.wb_data))
+
+        connect(m, periph_muxer.slaves[1], self.clint.bus)
 
         in_core_periph_space = Signal()
-        m.d.comb += in_core_periph_space.eq((self.core.wb_data.adr <= self.clint.base_addr) & (self.core.wb_data.adr > self.clint.base_addr + self.clint.space_size))
+        m.d.comb += in_core_periph_space.eq(
+            (self.core.wb_data.adr <= self.clint.base_addr)
+            & (self.core.wb_data.adr > self.clint.base_addr + self.clint.space_size)
+        )
         m.d.comb += muxer_ssel.eq(Cat(~in_core_periph_space, in_core_periph_space))
 
         m.submodules.clint = self.clint
         m.submodules.periph_muxer = periph_muxer
 
+        m.submodules.core = self.core
+
         m.d.comb += self.core.interrupts[InterruptCauseNumber.MEI].eq(self.clint.mtip)
         m.d.comb += self.core.interrupts[InterruptCauseNumber.MSI].eq(self.clint.msip)
         m.d.comb += self.core.interrupts[ISA_RESERVED_INTERRUPTS:].eq(self.interrupts[ISA_RESERVED_INTERRUPTS:])
-
 
         return m

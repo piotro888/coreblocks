@@ -67,11 +67,9 @@ def main():
         action="store_true",
         help="Remove debugging signals. Default: %(default)s",
     )
-    
+
     parser.add_argument(
-        "--soc",
-        action="store_true",
-        help="Wrap core in internal SoC adding internal memory mapped peripherals"
+        "--soc", action="store_true", help="Wrap core in internal SoC adding internal memory mapped peripherals"
     )
 
     parser.add_argument(
