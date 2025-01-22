@@ -3,6 +3,7 @@ from amaranth.lib.wiring import Component, In, Out
 
 from dataclasses import dataclass
 
+from amaranth.utils import ceil_log2
 from transactron.core.tmodule import SimpleKey
 from transactron.lib.dependencies import DependencyContext
 
@@ -50,6 +51,7 @@ class ClintPeriph(Component):
 
         self.mtime = Signal(self.time_width)
         self.mtimecmp = [Signal(self.time_width) for _ in range(self.hart_count)]
+        self.dbg = Signal(self.time_width)
         self.ipi = [Signal() for _ in range(self.hart_count)]
 
         dm = DependencyContext.get()
@@ -57,6 +59,7 @@ class ClintPeriph(Component):
 
     def elaborate(self, platform):
         m = Module()
+        m.d.comb += self.dbg.eq(self.mtimecmp[0])
 
         m.d.sync += self.mtime.eq(self.mtime + 1)
 
@@ -64,7 +67,7 @@ class ClintPeriph(Component):
             m.d.comb += self.mtip[i].eq(self.mtime >= self.mtimecmp[i])
             m.d.comb += self.msip[i].eq(self.ipi[i])
 
-        wb_addr_shift = self.bus.dat_r.shape().width // 8
+        wb_addr_shift = ceil_log2(self.bus.dat_r.shape().width // 8)
         in_range = (self.bus.adr >= (self.base_addr >> wb_addr_shift)) & (
             self.bus.adr < ((self.base_addr + self.space_size) >> wb_addr_shift)
         )
@@ -74,10 +77,13 @@ class ClintPeriph(Component):
 
             for hart in range(self.hart_count):
                 add_memory_mapped_register(
-                    m, self.bus, self.base_addr + self.msip_offset + self.ipi_width * hart, self.ipi[hart]
+                    m, self.bus, self.base_addr + self.msip_offset + (self.ipi_width // 8) * hart, self.ipi[hart]
                 )
                 add_memory_mapped_register(
-                    m, self.bus, self.base_addr + self.mtimecmp_offset + self.time_width * hart, self.mtimecmp[hart]
+                    m,
+                    self.bus,
+                    self.base_addr + self.mtimecmp_offset + (self.time_width // 8) * hart,
+                    self.mtimecmp[hart],
                 )
 
             add_memory_mapped_register(m, self.bus, self.base_addr + self.mtime_offset, self.mtime)

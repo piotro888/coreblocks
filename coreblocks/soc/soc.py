@@ -1,5 +1,6 @@
 from amaranth import *
 from amaranth.lib.wiring import Component, In, Out, connect, flipped
+from amaranth.utils import ceil_log2
 
 from coreblocks.arch.isa_consts import InterruptCauseNumber
 from coreblocks.core import Core
@@ -42,9 +43,10 @@ class SoC(Component):
         connect(m, periph_muxer.slaves[1], self.clint.bus)
 
         in_core_periph_space = Signal()
+        addr_shift = ceil_log2(self.wb_data.dat_r.shape().width // 8)
         m.d.comb += in_core_periph_space.eq(
-            (self.core.wb_data.adr <= self.clint.base_addr)
-            & (self.core.wb_data.adr > self.clint.base_addr + self.clint.space_size)
+            (self.core.wb_data.adr >= (self.clint.base_addr >> addr_shift))
+            & (self.core.wb_data.adr < ((self.clint.base_addr + self.clint.space_size) >> addr_shift))
         )
         m.d.comb += muxer_ssel.eq(Cat(~in_core_periph_space, in_core_periph_space))
 
@@ -53,7 +55,7 @@ class SoC(Component):
 
         m.submodules.core = self.core
 
-        m.d.comb += self.core.interrupts[InterruptCauseNumber.MEI].eq(self.clint.mtip)
+        m.d.comb += self.core.interrupts[InterruptCauseNumber.MTI].eq(self.clint.mtip)
         m.d.comb += self.core.interrupts[InterruptCauseNumber.MSI].eq(self.clint.msip)
         m.d.comb += self.core.interrupts[ISA_RESERVED_INTERRUPTS:].eq(self.interrupts[ISA_RESERVED_INTERRUPTS:])
 

@@ -24,12 +24,15 @@ from parameterized import parameterized_class
 
 from transactron.utils.dependencies import DependencyContext
 
+from coreblocks.soc.soc import SoC
+
 
 class CoreTestElaboratable(Elaboratable):
-    def __init__(self, gen_params: GenParams, instr_mem: list[int] = [0], data_mem: list[int] = []):
+    def __init__(self, gen_params: GenParams, instr_mem: list[int] = [0], data_mem: list[int] = [], *, with_soc=False):
         self.gen_params = gen_params
         self.instr_mem = instr_mem
         self.data_mem = data_mem
+        self.soc_test = with_soc
 
     def elaborate(self, platform):
         m = Module()
@@ -44,20 +47,23 @@ class CoreTestElaboratable(Elaboratable):
         )
 
         self.core = Core(gen_params=self.gen_params)
+        if self.soc_test:
+            m.submodules.soc = self.top = SoC(core=self.core, core_gen_params=self.gen_params)
+        else:
+            m.sumbodules.core = self.top = self.core
 
         if self.gen_params.interrupt_custom_count == 2:
             self.interrupt_level = Signal()
             self.interrupt_edge = Signal()
-            m.d.comb += self.core.interrupts.eq(
+            m.d.comb += self.top.interrupts.eq(
                 Cat(self.interrupt_edge, self.interrupt_level) << ISA_RESERVED_INTERRUPTS
             )
 
         m.submodules.wb_mem_slave = self.wb_mem_slave
         m.submodules.wb_mem_slave_data = self.wb_mem_slave_data
-        m.submodules.c = self.core
 
-        connect(m, self.core.wb_instr, self.wb_mem_slave.bus)
-        connect(m, self.core.wb_data, self.wb_mem_slave_data.bus)
+        connect(m, self.top.wb_instr, self.wb_mem_slave.bus)
+        connect(m, self.top.wb_data, self.wb_mem_slave_data.bus)
 
         return m
 
@@ -148,6 +154,7 @@ class TestCoreAsmSourceBase(TestCoreBase):
         ("exception_handler", "exception_handler.asm", 2000, {2: 987, 11: 0xAAAA, 15: 16}, full_core_config),
         ("wfi_no_int", "wfi_no_int.asm", 200, {1: 1}, full_core_config),
         ("mtval", "mtval.asm", 2000, {8: 5 * 8}, full_core_config),
+        ("clint", "clint.asm", 1000, {2: 5, 8: 1}, full_core_config),
     ],
 )
 class TestCoreBasicAsm(TestCoreAsmSourceBase):
@@ -171,7 +178,9 @@ class TestCoreBasicAsm(TestCoreAsmSourceBase):
         if self.name == "mtval":
             bin_src["text"] = bin_src["text"][: 0x1000 // 4]  # force instruction memory size clip in `mtval` test
 
-        self.m = CoreTestElaboratable(self.gen_params, instr_mem=bin_src["text"], data_mem=bin_src["data"])
+        self.m = CoreTestElaboratable(
+            self.gen_params, instr_mem=bin_src["text"], data_mem=bin_src["data"], with_soc=self.name == "clint"
+        )
 
         with self.run_simulation(self.m) as sim:
             sim.add_testbench(self.run_and_check)
