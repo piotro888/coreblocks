@@ -57,6 +57,7 @@ class SoC(Component):
 
         m.d.comb += self.core.interrupts[InterruptCauseNumber.MTI].eq(self.clint.mtip)
         m.d.comb += self.core.interrupts[InterruptCauseNumber.MSI].eq(self.clint.msip)
-        m.d.comb += self.core.interrupts[ISA_RESERVED_INTERRUPTS:].eq(self.interrupts[ISA_RESERVED_INTERRUPTS:])
+        #m.d.comb += self.core.interrupts[ISA_RESERVED_INTERRUPTS:].eq(self.interrupts[ISA_RESERVED_INTERRUPTS:])
+        m.d.comb += self.core.interrupts[16:32].eq(self.interrupts[16:32])
 
         return m

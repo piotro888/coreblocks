@@ -6,9 +6,6 @@ import argparse
 
 from amaranth import *
 
-from coreblocks.soc.soc import SoC
-
-
 if __name__ == "__main__":
     parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     sys.path.insert(0, parent)
@@ -20,6 +17,7 @@ from transactron.utils import DependencyManager, DependencyContext
 from transactron.utils.gen import generate_verilog
 
 from coreblocks.params.configurations import *
+from coreblocks.soc.soc import SoC
 
 str_to_coreconfig: dict[str, CoreConfiguration] = {
     "basic": basic_core_config,

@@ -40,7 +40,7 @@ basic_configuration: tuple[BlockComponentParams, ...] = (
         ],
         rs_entries=2,
     ),
-    RSBlockComponent([LSUComponent()], rs_entries=2, rs_type=FifoRS),
+    RSBlockComponent([LSUAtomicWrapperComponent(LSUComponent())], rs_entries=2, rs_type=FifoRS),
     CSRBlockComponent(),
 )
 
