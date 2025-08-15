@@ -17,7 +17,7 @@ from transactron.utils import DependencyManager, DependencyContext
 from transactron.utils.gen import generate_verilog
 
 from coreblocks.params.configurations import *
-from coreblocks.soc.soc import SoC
+from coreblocks.soc.soc_dbg import DebugSoC
 
 str_to_coreconfig: dict[str, CoreConfiguration] = {
     "basic": basic_core_config,
@@ -31,7 +31,7 @@ def gen_verilog(core_config: CoreConfiguration, output_path: str, *, wrap_soc: b
         gp = GenParams(core_config)
         core = Core(gen_params=gp)
         if wrap_soc:
-            core = SoC(core=core, core_gen_params=gp)
+            core = DebugSoC(core=core, core_gen_params=gp)
 
         top = TransactionComponent(core, dependency_manager=DependencyContext.get())
 
