@@ -5,7 +5,7 @@ from coreblocks.interface.layouts import (
     InternalInterruptControllerLayouts,
 )
 from coreblocks.backend.retirement import *
-from coreblocks.priv.csr.csr_instances import GenericCSRRegisters
+from coreblocks.priv.csr.csr_instances import CSRInstances
 
 from transactron.lib import FIFO, Adapter
 from coreblocks.core_structs.rat import FRAT, RRAT
