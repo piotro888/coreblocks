@@ -68,8 +68,6 @@ class Core(Component):
         self.RF = RegisterFile(gen_params=self.gen_params)
         self.ROB = ReorderBuffer(gen_params=self.gen_params)
 
-        self.retirement = Retirement(self.gen_params)
-
         self.exception_information_register = ExceptionInformationRegister(
             self.gen_params,
             rob_get_indices=self.ROB.get_indices,
@@ -89,8 +87,8 @@ class Core(Component):
             rf_write=self.RF.write,
         )
 
-        self.csr_generic = GenericCSRRegisters(self.gen_params)
-        self.connections.add_dependency(CSRInstancesKey(), self.csr_generic)
+        self.csr_generic = CSRInstances(self.gen_params)
+        self.dm.add_dependency(CSRInstancesKey(), self.csr_generic)
 
         self.interrupt_controller = InternalInterruptController(self.gen_params)
 
@@ -114,7 +112,7 @@ class Core(Component):
         m.submodules.RF = rf = self.RF
         m.submodules.rob = rob = self.ROB
 
-        m.submodules.csr_instances = self.csr_instances
+        m.submodules.csr_instances = self.csr_generic
         m.submodules.interrupt_controller = self.interrupt_controller
         m.d.comb += self.interrupt_controller.internal_report_level.eq(self.interrupts[0:16])
         m.d.comb += self.interrupt_controller.custom_report.eq(self.interrupts[16:])
@@ -141,7 +139,7 @@ class Core(Component):
 
         m.submodules.exception_information_register = self.exception_information_register
 
-        fetch_resume = self.connections.get_optional_dependency(FetchResumeKey())
+        fetch_resume = self.dm.get_optional_dependency(FetchResumeKey())
         if fetch_resume is not None:
             fetch_resume_fb, fetch_resume_unifiers = fetch_resume
             m.submodules.fetch_resume_unifiers = ModuleConnector(**fetch_resume_unifiers)
@@ -149,7 +147,6 @@ class Core(Component):
             m.submodules.fetch_resume_connector = ConnectTrans(fetch_resume_fb, self.frontend.resume_from_unsafe)
 
         m.submodules.announcement = self.announcement
-        m.submodules.func_blocks_unifier = self.func_blocks_unifier
         m.submodules.retirement = Retirement(
             self.gen_params,
             rob_peek=rob.peek,

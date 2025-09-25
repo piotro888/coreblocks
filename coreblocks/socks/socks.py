@@ -4,7 +4,7 @@ from amaranth.lib.wiring import Component, In, Out, connect, flipped
 from coreblocks.arch.isa_consts import InterruptCauseNumber
 from coreblocks.core import Core
 from coreblocks.params import GenParams
-from coreblocks.peripherals.wishbone import WishboneInterface, WishboneMuxer
+from coreblocks.peripherals.wishbone import WishboneInterface, WishboneMuxer, WishboneSignature
 from coreblocks.priv.traps.interrupt_controller import ISA_RESERVED_INTERRUPTS
 from coreblocks.socks.clint import ClintPeriph
 from coreblocks.socks.peripheral import bus_in_periph_range
@@ -25,8 +25,8 @@ class Socks(Component):
     def __init__(self, core: Core, core_gen_params: GenParams):
         super().__init__(
             {
-                "wb_instr": Out(WishboneInterface(core_gen_params.wb_params).signature),
-                "wb_data": Out(WishboneInterface(core_gen_params.wb_params).signature),
+                "wb_instr": Out(WishboneSignature(core_gen_params.wb_params)),
+                "wb_data": Out(WishboneSignature(core_gen_params.wb_params)),
                 "interrupts": In(ISA_RESERVED_INTERRUPTS + core_gen_params.interrupt_custom_count),
             }
         )

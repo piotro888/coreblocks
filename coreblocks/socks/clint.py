@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from transactron.core.tmodule import SimpleKey
 from transactron.lib.dependencies import DependencyContext
 
-from coreblocks.peripherals.wishbone import WishboneInterface, WishboneParameters
+from coreblocks.peripherals.wishbone import WishboneInterface, WishboneParameters, WishboneSignature
 from coreblocks.socks.peripheral import SocksPeripheral, gen_memory_mapped_register, is_perpiheral_request
 
 
@@ -33,7 +33,7 @@ class ClintPeriph(Component, SocksPeripheral):
     ):
         super().__init__(
             {
-                "bus": In(WishboneInterface(wb_params).signature),
+                "bus": In(WishboneSignature(wb_params)),
                 "mtip": Out(1),
                 "msip": Out(hart_count),
             }
