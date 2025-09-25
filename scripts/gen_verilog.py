@@ -115,8 +115,6 @@ def main():
         help="Wrap Coreblocks in CoreSoCks providing additional memory-mapped or CSR peripherals",
     )
 
-    parser.add_argument("--reset-pc", action="store", default="0x0", help="Set core reset address")
-
     parser.add_argument(
         "-o", "--output", action="store", default="core.v", help="Output file path. Default: %(default)s"
     )
