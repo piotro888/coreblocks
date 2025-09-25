@@ -5,6 +5,7 @@ import sys
 import argparse
 
 from amaranth import *
+from transactron.utils.gen import AbstractInterface, verilog
 
 
 if __name__ == "__main__":
@@ -16,15 +17,57 @@ from coreblocks.core import Core
 from coreblocks.socks.socks import Socks
 from transactron import TransactionComponent
 from transactron.utils import DependencyManager, DependencyContext
-from transactron.utils.gen import generate_verilog
 
 from coreblocks.params.configurations import *
+
+from amaranth.hdl._ir import Design
+import amaranth.hdl._mem as _mem
+
+
+def fixup_vivado_transparent_memories(design: Design):
+    # See https://github.com/YosysHQ/yosys/issues/5082
+    # Vivado stopped inferring transparent memory ports emitted with Yosys verilog backend
+    # correctly from (probably) version 2023.1, printing [Synth 8-6430] warning.
+    # It is a Vivado bug, generating circuit behaviour that doesn't match the RTL.
+    # It is fixed by adding vivado-specific RTL attribute to main memory declarations that
+    # use this pattern.
+    # Adds the attribute to all memories with enabled port transparency, needed until (and if)
+    # Yosys changes the generated pattern.
+
+    for fragment in design.fragments:  # type: ignore
+        if isinstance(fragment, _mem.MemoryInstance):
+            is_transparent = any(read_port._transparent_for for read_port in fragment._read_ports)  # type: ignore
+
+            if is_transparent:
+                fragment._attrs.setdefault("rw_addr_collision", "yes")  # type: ignore
 
 str_to_coreconfig: dict[str, CoreConfiguration] = {
     "basic": basic_core_config,
     "tiny": tiny_core_config,
     "full": full_core_config,
 }
+
+def generate_verilog(
+    elaboratable: Elaboratable,
+    ports = None,
+    top_name: str = "top",
+):
+    # The ports logic is copied (and simplified) from amaranth.back.verilog.convert.
+    # Unfortunately, the convert function doesn't return the name map.
+    if ports is None and isinstance(elaboratable, AbstractInterface):
+        ports = []
+        for _, _, value in elaboratable.signature.flatten(elaboratable):
+            ports.append(Value.cast(value))
+    elif ports is None:
+        raise TypeError("The `generate_verilog()` function requires a `ports=` argument")
+
+    design = Fragment.get(elaboratable, platform=None).prepare(ports=ports)
+
+    fixup_vivado_transparent_memories(design)
+
+    verilog_text, name_map = verilog.convert_fragment(design, name=top_name, emit_src=True, strip_internal_attrs=True)
+
+    return verilog_text
 
 
 def gen_verilog(core_config: CoreConfiguration, output_path: str, *, wrap_socks: bool = False):
@@ -36,9 +79,8 @@ def gen_verilog(core_config: CoreConfiguration, output_path: str, *, wrap_socks:
 
         top = TransactionComponent(core, dependency_manager=DependencyContext.get())
 
-        verilog_text, gen_info = generate_verilog(top)
+        verilog_text = generate_verilog(top)
 
-        gen_info.encode(f"{output_path}.json")
         with open(output_path, "w") as f:
             f.write(verilog_text)
 
