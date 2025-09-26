@@ -1,9 +1,14 @@
 from collections import deque
 import random
 from amaranth import *
+<<<<<<< HEAD
 from amaranth.utils import ceil_log2
 from transactron import Method, TModule
 from transactron.lib import Adapter, AdapterTrans
+=======
+from transactron import TModule
+from transactron.lib import Adapter
+>>>>>>> parent of e200b5b4 (Push result from FUs (#792))
 from transactron.testing import MethodMock, SimpleTestCircuit, TestCaseWithSimulator, TestbenchIO, def_method_mock
 
 from coreblocks.arch.isa_consts import Funct3, Funct7
@@ -16,20 +21,20 @@ from coreblocks.params.genparams import GenParams
 
 
 class FuncUnitMock(FuncUnit, Elaboratable):
-    def __init__(self, gen_params: GenParams):
+    def __init__(self, gen_params):
         layouts = gen_params.get(FuncUnitLayouts)
 
-        self.issue = Method(i=layouts.issue)
-        self.push_result = Method(i=layouts.push_result)
+        self.issue_tb = TestbenchIO(Adapter.create(i=layouts.issue))
+        self.accept_tb = TestbenchIO(Adapter.create(o=layouts.accept))
 
-        self.issue_tb = TestbenchIO(Adapter(self.issue))
-        self.push_result_tb = TestbenchIO(AdapterTrans(self.push_result))
+        self.issue = self.issue_tb.adapter.iface
+        self.accept = self.accept_tb.adapter.iface
 
     def elaborate(self, platform):
         m = TModule()
 
         m.submodules.issue_tb = self.issue_tb
-        m.submodules.push_result_tb = self.push_result_tb
+        m.submodules.accept_tb = self.accept_tb
 
         return m
 
@@ -75,7 +80,7 @@ class TestLSUAtomicWrapper(TestCaseWithSimulator):
             )
 
     @def_method_mock(
-        lambda self: self.lsu.push_result_tb, enable=lambda self: random.random() < 0.9 and len(self.lsu_res_q) > 0
+        lambda self: self.lsu.accept_tb, enable=lambda self: random.random() < 0.9 and len(self.lsu_res_q) > 0
     )
     def lsu_accept_mock(self, arg):
         res = self.lsu_res_q[0]
@@ -210,12 +215,20 @@ class TestLSUAtomicWrapper(TestCaseWithSimulator):
 
     async def accept_process(self, sim):
         for _ in range(self.inst_cnt):
+<<<<<<< HEAD
             res = await self.dut.push_result.call(sim)
             expected = self.results[res["rob_id"]]
             assert res["rp_dst"] == expected["rp_dst"]
             assert res["exception"] == expected["exception"]
             assert res["result"] == expected["result"]
 
+=======
+            res = await self.dut.accept.call(sim)
+            assert res["exception"] == self.result_q[0]["exception"]
+            assert res["result"] == self.result_q[0]["result"]
+            assert res["rp_dst"] == self.result_q[0]["rp_dst"]
+            self.result_q.popleft()
+>>>>>>> parent of e200b5b4 (Push result from FUs (#792))
             await self.random_wait_geom(sim, 0.9)
 
     def test_randomized(self):

@@ -1,10 +1,11 @@
-from dataclasses import dataclass, KW_ONLY
+from dataclasses import dataclass
 from typing import Sequence
 from amaranth import *
 from coreblocks.arch.isa_consts import PrivilegeLevel
 from transactron.utils.dependencies import DependencyContext
 
 from transactron import *
+from transactron.lib import FIFO
 
 from coreblocks.params import GenParams, FunctionalComponentParams
 from coreblocks.arch import OpType, Funct3, ExceptionCause
@@ -49,7 +50,7 @@ class ExceptionFuncUnit(FuncUnit, Elaboratable):
         layouts = gen_params.get(FuncUnitLayouts)
 
         self.issue = Method(i=layouts.issue)
-        self.push_result = Method(i=layouts.push_result)
+        self.accept = Method(o=layouts.accept)
 
         self.dm = DependencyContext.get()
         self.report = self.dm.get_dependency(ExceptionReportKey())
@@ -57,7 +58,12 @@ class ExceptionFuncUnit(FuncUnit, Elaboratable):
     def elaborate(self, platform):
         m = TModule()
 
+        m.submodules.fifo = fifo = FIFO(self.gen_params.get(FuncUnitLayouts).accept, 2)
         m.submodules.decoder = decoder = self.fn.get_decoder(self.gen_params)
+
+        @def_method(m, self.accept)
+        def _():
+            return fifo.read(m)
 
         @def_method(m, self.issue)
         def _(arg):
@@ -98,15 +104,13 @@ class ExceptionFuncUnit(FuncUnit, Elaboratable):
 
             self.report(m, rob_id=arg.rob_id, cause=cause, pc=arg.pc, mtval=mtval)
 
-            self.push_result(m, result=0, exception=1, rob_id=arg.rob_id, rp_dst=arg.rp_dst)
+            fifo.write(m, result=0, exception=1, rob_id=arg.rob_id, rp_dst=arg.rp_dst)
 
         return m
 
 
 @dataclass(frozen=True)
 class ExceptionUnitComponent(FunctionalComponentParams):
-    _: KW_ONLY
-    result_fifo: bool = True
     decoder_manager: ExceptionUnitFn = ExceptionUnitFn()
 
     def get_module(self, gen_params: GenParams) -> FuncUnit:

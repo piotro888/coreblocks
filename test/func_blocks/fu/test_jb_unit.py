@@ -17,7 +17,7 @@ from transactron.lib import BasicFifo
 from test.func_blocks.fu.functional_common import ExecFn, FunctionalUnitTestCase
 
 
-class JumpBranchWrapper(FuncUnit, Elaboratable):
+class JumpBranchWrapper(Elaboratable):
     def __init__(self, gen_params: GenParams, auipc_test: bool):
         self.gp = gen_params
         self.auipc_test = auipc_test
@@ -30,9 +30,9 @@ class JumpBranchWrapper(FuncUnit, Elaboratable):
 
         self.jb = JumpBranchFuncUnit(gen_params)
         self.issue = self.jb.issue
-        self.push_result = Method(
-            i=StructLayout(
-                gen_params.get(FuncUnitLayouts).push_result.members
+        self.accept = Method(
+            o=StructLayout(
+                gen_params.get(FuncUnitLayouts).accept.members
                 | (gen_params.get(JumpBranchLayouts).verify_branch.members if not auipc_test else {})
             )
         )
@@ -41,9 +41,10 @@ class JumpBranchWrapper(FuncUnit, Elaboratable):
         m = TModule()
 
         m.submodules.jb_unit = self.jb
-        m.submodules.res_fifo = res_fifo = BasicFifo(self.gp.get(FuncUnitLayouts).push_result, 2)
+        m.submodules.res_fifo = res_fifo = BasicFifo(self.gp.get(FuncUnitLayouts).accept, 2)
 
-        self.jb.push_result.proxy(m, res_fifo.write)
+        with Transaction().body(m):
+            res_fifo.write(m, self.jb.accept(m))
 
         @def_method(m, self.target_pred_req)
         def _():
@@ -53,7 +54,8 @@ class JumpBranchWrapper(FuncUnit, Elaboratable):
         def _(arg):
             return {"valid": 0, "cfi_target": 0}
 
-        with Transaction().body(m):
+        @def_method(m, self.accept)
+        def _(arg):
             res = res_fifo.read(m)
             ret = {
                 "result": res.result,
@@ -61,15 +63,15 @@ class JumpBranchWrapper(FuncUnit, Elaboratable):
                 "rp_dst": res.rp_dst,
                 "exception": res.exception,
             }
-            if not self.auipc_test:
-                verify = self.jb.fifo_branch_resolved.read(m)
-                ret = ret | {
-                    "next_pc": verify.next_pc,
-                    "from_pc": verify.from_pc,
-                    "misprediction": verify.misprediction,
-                }
+            if self.auipc_test:
+                return ret
 
-            self.push_result(m, ret)
+            verify = self.jb.fifo_branch_resolved.read(m)
+            return ret | {
+                "next_pc": verify.next_pc,
+                "from_pc": verify.from_pc,
+                "misprediction": verify.misprediction,
+            }
 
         return m
 

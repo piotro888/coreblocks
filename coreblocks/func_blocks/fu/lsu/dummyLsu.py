@@ -45,7 +45,7 @@ class LSUDummy(FuncUnit, Elaboratable):
         self.report = self.dependency_manager.get_dependency(ExceptionReportKey())
 
         self.issue = Method(i=self.fu_layouts.issue)
-        self.push_result = Method(i=self.fu_layouts.push_result)
+        self.accept = Method(o=self.fu_layouts.accept)
 
         self.bus = bus
 
@@ -121,7 +121,8 @@ class LSUDummy(FuncUnit, Elaboratable):
             results_noop.write(m, data=0, exception=0, cause=0, addr=0)
             issued_noop.write(m, arg)
 
-        with Transaction().body(m):
+        @def_method(m, self.accept)
+        def _():
             arg = Signal(self.fu_layouts.issue)
             res = Signal(self.lsu_layouts.accept)
             with condition(m) as branch:
@@ -137,13 +138,12 @@ class LSUDummy(FuncUnit, Elaboratable):
 
             self.log.debug(m, 1, "accept rob_id={} result=0x{:08x} exception={}", arg.rob_id, res.data, res.exception)
 
-            self.push_result(
-                m,
-                rob_id=arg["rob_id"],
-                rp_dst=arg["rp_dst"],
-                result=res["data"],
-                exception=res["exception"],
-            )
+            return {
+                "rob_id": arg["rob_id"],
+                "rp_dst": arg["rp_dst"],
+                "result": res["data"],
+                "exception": res["exception"],
+            }
 
         with Transaction().body(m):
             precommit = self.dependency_manager.get_dependency(InstructionPrecommitKey())

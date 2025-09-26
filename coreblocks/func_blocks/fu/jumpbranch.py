@@ -134,7 +134,7 @@ class JumpBranchFuncUnit(FuncUnit, Elaboratable):
         layouts = gen_params.get(FuncUnitLayouts)
 
         self.issue = Method(i=layouts.issue)
-        self.push_result = Method(i=layouts.push_result)
+        self.accept = Method(o=layouts.accept)
 
         self.fifo_branch_resolved = FIFO(self.gen_params.get(JumpBranchLayouts).verify_branch, 2)
 
@@ -181,7 +181,8 @@ class JumpBranchFuncUnit(FuncUnit, Elaboratable):
         )
         m.submodules.instr_fifo = instr_fifo = BasicFifo(instr_fifo_layout, 2)
 
-        with Transaction().body(m):
+        @def_method(m, self.accept)
+        def _():
             instr = instr_fifo.read(m)
             target_prediction = jump_target_resp(m)
 
@@ -249,13 +250,12 @@ class JumpBranchFuncUnit(FuncUnit, Elaboratable):
                     misprediction,
                 )
 
-            self.push_result(
-                m,
-                rob_id=instr.rob_id,
-                result=instr.reg_res,
-                rp_dst=instr.rp_dst,
-                exception=exception,
-            )
+            return {
+                "rob_id": instr.rob_id,
+                "result": instr.reg_res,
+                "rp_dst": instr.rp_dst,
+                "exception": exception,
+            }
 
         @def_method(m, self.issue)
         def _(arg):
