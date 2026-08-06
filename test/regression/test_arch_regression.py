@@ -161,7 +161,7 @@ def build_memory_model(elf_path: str | Path, stop_callback, **kwargs):
     return CoreMemoryModel(segments), endtest, int_generator
 
 
-async def run_arch_elf(sim_backend, elf_path: str | Path, timeout_cycles: int = 2_000_000):
+async def run_arch_elf(sim_backend, elf_path: str | Path, timeout_cycles: int = 80_000):
     _set_transactron_env_defaults()
     elf_path = Path(elf_path).resolve()
 
@@ -197,7 +197,7 @@ async def run_test(sim_backend, test_name: str):
     elf_path = elf_path.resolve()
     if not elf_path.exists():
         raise FileNotFoundError(f"ELF file not found for test {test_name}: {elf_path}")
-    await run_arch_elf(sim_backend, elf_path, timeout_cycles=2_000_000)
+    await run_arch_elf(sim_backend, elf_path, timeout_cycles=80_000)
 
 
 def ensure_arch_test_cocotb_build():
@@ -221,6 +221,8 @@ def ensure_arch_test_cocotb_build():
             "--reset-pc",
             f"0x{START_PC:x}",
             "--with-socks",
+            "--with-rvvi",
+            # "--insert-dumpvars",
             "-o",
             str(CORE_V),
         ]
@@ -268,7 +270,7 @@ def regression_body_with_pysim(elf_paths: list[Path], traces: bool):
             traces_file = REGRESSION_ARCH_TESTS_PREFIX + elf_path.stem
 
         pysim = PySimulation(reset_pc=START_PC, with_socks=True, traces_file=traces_file)
-        asyncio.run(run_arch_elf(pysim, elf_path, timeout_cycles=2_000_000))
+        asyncio.run(run_arch_elf(pysim, elf_path, timeout_cycles=80_000))
 
 
 @pytest.fixture(scope="session")
@@ -313,7 +315,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run a single Coreblocks arch-test ELF")
     parser.add_argument("elf_path", type=Path, nargs="*", help="Paths to the ELF file to execute")
     parser.add_argument("--backend", choices=["cocotb", "pysim"], default="cocotb", help="Simulation backend")
-    parser.add_argument("--timeout-cycles", type=int, default=2_000_000, help="Maximum simulated cycles")
+    parser.add_argument("--timeout-cycles", type=int, default=80_000, help="Maximum simulated cycles")
     parser.add_argument("--traces", action="store_true", help="Enable cocotb trace generation")
     args = parser.parse_args()
 

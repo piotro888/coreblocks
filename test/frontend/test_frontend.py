@@ -11,6 +11,7 @@ from coreblocks.interface.keys import (
     CSRInstancesKey,
     CoreStateKey,
     FTQCommitKey,
+    RollbackKey,
     UnsafeInstructionResolvedKey,
 )
 from coreblocks.interface.layouts import RATLayouts, RetirementLayouts
@@ -54,6 +55,9 @@ class TestFrontend(TestCaseWithSimulator):
         self.core_state = TestbenchIO(Adapter(o=self.gen_params.get(RetirementLayouts).core_state))
         self.dm.add_dependency(CoreStateKey(), self.core_state.adapter.iface)
 
+        rollback_m, rollback_unifiers = self.dm.get_dependency(RollbackKey())
+        self.rollback = TestbenchIO(AdapterTrans.create(rollback_m))
+
         self.m = ModuleConnector(
             self.frontend,
             self.bus,
@@ -63,18 +67,23 @@ class TestFrontend(TestCaseWithSimulator):
             self.resolve,
             self.ftq_commit,
             self.core_state,
+            self.rollback,
+            rollback_unifiers[0],  # type: ignore
         )
 
         self.stall_resume_pc = None
         self.in_stall = False
         self.flushing = False
+        self.misprediction = None
+
+        self.rollback_params = None
 
         self.unsafe_resume = None
 
         self.pending_exception = None
         self.stall_exception = None
         self.ftq_commit_queue = deque()
-        self.ftq_commit_ignored = deque()
+        self.last_rollback_tag = 0
 
         random.seed(42)
 
@@ -91,6 +100,15 @@ class TestFrontend(TestCaseWithSimulator):
             for idx, instr in enumerate(instrs["data"]):
                 if idx >= instrs["count"]:
                     continue
+
+                if instr["rollback_tag_v"]:
+                    assert self.rollback_params is not None
+                    if instr["rollback_tag"] == self.rollback_params["tag"]:
+                        assert instr["pc"] == self.rollback_params["pc"]
+                        next_pc = self.rollback_params["pc"]
+                        self.rollback_params = None
+                    else:
+                        next_pc = instr["pc"]  # skip, superseded rollback
 
                 if self.in_stall:
                     assert instr["pc"] == self.stall_resume_pc
@@ -130,6 +148,31 @@ class TestFrontend(TestCaseWithSimulator):
 
             await self.random_wait_geom(sim, 0.7)
 
+    async def misprediction_process(self, sim):
+        while True:
+            await self.random_wait_geom(sim, 0.3)
+
+            if self.flushing or not self.ftq_commit_queue:
+                continue
+
+            rollback = {
+                "pc": random.randint(0, 0x100) * 0x4,
+                "tag": self.last_rollback_tag + 1,
+                "ftq_ptr": random.choice(self.ftq_commit_queue),
+            }
+            await self.rollback.call(sim, **rollback)
+            self.last_rollback_tag += 1
+            self.rollback_params = rollback
+
+            self.unsafe_resume = None
+            self.in_stall = False
+
+            if self.stall_exception and random.random() < 0.3:
+                # there is a chance if it is before or after the EIR entry
+                await self.eir.call(sim)
+                self.stall_exception = False
+                assert False
+
     async def exception_process(self, sim):
         while True:
             await self.random_wait_geom(sim, 0.5)
@@ -139,6 +182,8 @@ class TestFrontend(TestCaseWithSimulator):
                 self.stall_resume_pc = (random.randrange(0x400) // 4) * 4
                 self.flushing = True
                 await self.random_wait(sim, 4)
+                while self.ftq_commit_queue:
+                    await sim.tick()
                 await CallTrigger(sim).call(self.eir.clear).call(
                     self.frontend.redirect, pc=self.stall_resume_pc, ftq_ptr=self.pending_exception["ftq_ptr"]
                 )
@@ -204,6 +249,7 @@ class TestFrontend(TestCaseWithSimulator):
     def test_frontend(self):
         with self.run_simulation(self.m, max_cycles=1500) as sim:
             sim.add_testbench(self.consume_process)
+            sim.add_testbench(self.misprediction_process, background=True)
             sim.add_testbench(self.exception_process, background=True)
             sim.add_testbench(self.instr_verify_process, background=True)
             sim.add_testbench(self.bus_process, background=True)

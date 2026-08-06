@@ -95,7 +95,6 @@ class RSBase(Elaboratable):
         @def_method(m, self.select)
         def _() -> ReturnDict:
             selected_id = alloc(m).ident
-            self.log.debug(m, True, "selected entry {}", selected_id)
             return {"rs_entry_id": selected_id}
 
         matches_s1 = Signal(ArrayLayout(len(self.update), self.rs_entries))
@@ -145,7 +144,17 @@ class RSBase(Elaboratable):
             m.d.sync += self.data[rs_entry_id].rs_data.eq(rs_data)
             m.d.sync += self.data[rs_entry_id].rec_full.eq(1)
             self.perf_rs_wait_time.start(m, slot=rs_entry_id)
-            self.log.debug(m, True, "inserted entry {}", rs_entry_id)
+            self.log.debug(
+                m,
+                True,
+                "inserted entry {}, rob_id 0x{:x}, s1: p{} v{}, s2: p{} v{}",
+                rs_entry_id,
+                rs_data.rob_id,
+                rs_data.rp_s1,
+                rs_data.s1_val,
+                rs_data.rp_s2,
+                rs_data.s2_val,
+            )
 
         with Transaction().body(m):
             self.order = order(m).order  # always ready!
@@ -166,7 +175,15 @@ class RSBase(Elaboratable):
             self.perf_rs_wait_time.stop(m, slot=actual_rs_entry_id)
             out = Signal(self.layouts.take_out)
             m.d.av_comb += assign(out, record, fields=AssignType.COMMON)
-            self.log.debug(m, True, "taken entry {} at idx {}", actual_rs_entry_id, rs_entry_id)
+            self.log.debug(
+                m,
+                True,
+                "taken entry {} at idx {}, rob_id 0x{:x}, rp_dst p{}",
+                actual_rs_entry_id,
+                rs_entry_id,
+                out.rob_id,
+                out.rp_dst,
+            )
             return out
 
         for get_ready_list, ready_list in zip(self.get_ready_list, ready_lists):

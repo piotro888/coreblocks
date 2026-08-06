@@ -5,6 +5,8 @@ import argparse
 from typing import Optional
 from importlib.machinery import SourceFileLoader
 from importlib.metadata import version
+from textwrap import dedent
+from datetime import datetime
 
 from coreblocks.params.genparams import GenParams
 from coreblocks.core import Core
@@ -120,6 +122,12 @@ def main():
 
     parser.add_argument("--with-rvvi", action="store_true", help="Enable RVVI-TRACE interface")
 
+    parser.add_argument(
+        "--insert-dumpvars",
+        action="store_true",
+        help="inject $dumpvars statement into generated verilog to write traces",
+    )
+
     args = parser.parse_args()
 
     os.environ["AMARANTH_verbose"] = "true" if args.verbose else "false"
@@ -163,6 +171,33 @@ def main():
         enable_vivado_hacks=args.enable_vivado_hacks,
         sim_logs=sim_params,
     )
+
+    if args.insert_dumpvars:
+        with open(args.output, "r") as f:
+            verilog_text = f.readlines()
+
+        in_module_ports = False
+        for idx, line in enumerate(verilog_text):
+            if line.startswith("module top("):
+                in_module_ports = True
+            if in_module_ports and line.endswith(");\n"):
+                insert = dedent(
+                    """\
+                    initial begin
+                        $dumpfile("trace.vcd");
+                        $dumpvars(0, top);
+                    end
+                """
+                )
+                verilog_text.insert(idx + 1, insert)
+
+        verilog_text.insert(
+            0,
+            f"/* Coreblocks {version('coreblocks')}, {config_name} core configuration, generated at {datetime.now()}. */\n",
+        )
+
+        with open(args.output, "w") as f:
+            f.write("".join(verilog_text))
 
 
 if __name__ == "__main__":

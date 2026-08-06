@@ -13,12 +13,12 @@ MODULE = arch_elf_entrypoint
 
 # Yosys/Amaranth borkedness workaround
 ifeq ($(SIM),verilator)
-  EXTRA_ARGS += -Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-UNSIGNED -Wno-CMPCONST -Wno-LITENDIAN -Wno-UNOPTFLAT
+  EXTRA_ARGS += -Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-UNSIGNED -Wno-CMPCONST -Wno-LITENDIAN -Wno-UNOPTFLAT -Wno-ALWNEVER
   BUILD_ARGS += -j`nproc`
 endif
 
 ifeq ($(TRACES),1)
-  EXTRA_ARGS += --trace-fst --trace-structs
+  EXTRA_ARGS += --trace-vcd --trace-structs
 endif
 
 # include cocotb's make rules to take care of the simulator setup

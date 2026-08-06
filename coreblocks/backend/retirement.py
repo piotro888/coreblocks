@@ -139,15 +139,6 @@ class Retirement(Elaboratable):
 
             self.perf_instr_ret.incr[i](m)
 
-            log.debug(
-                m,
-                True,
-                "retiring instruction rl{} -> rp{} freeing rp{}",
-                rob_entry.rob_data.rl_dst,
-                rob_entry.rob_data.rp_dst,
-                rat_out.old_rp_dst,
-            )
-
         def flush_instr(i: int, rob_entry: View):
             evlog.emit(m, RobFlush.hw(rob_id=rob_entry.rob_id))
 
@@ -157,7 +148,8 @@ class Retirement(Elaboratable):
             log.debug(
                 m,
                 True,
-                "flushing instruction freeing rp{}",
+                "flushing instruction rob_id 0x{:x} freeing p{}",
+                rob_entry.rob_id,
                 rob_entry.rob_data.rp_dst,
             )
 
@@ -368,7 +360,7 @@ class Retirement(Elaboratable):
                     # Resume core operation
                     self.c_rat_restore(m, entries=self.r_rat_peek(m).entries)
                     self.perf_trap_latency.stop(m)
-                    log.debug(m, True, "Resuming core")
+                    log.debug(m, True, "Resuming core from the retirement")
 
                     handler_pc = Signal(self.gen_params.isa.xlen)
                     tvec_offset = Signal(self.gen_params.isa.xlen)
